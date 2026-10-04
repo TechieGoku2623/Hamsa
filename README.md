@@ -1,12 +1,12 @@
 # Hamsa
 
-AI-native business-to-customer messaging for India: sales, support and payments over chat and voice, run by an Indic AI agent, on plans from ₹99/month.
+An Indian messaging app in the WhatsApp mould: end-to-end encrypted personal chats, groups and calls, free for everyone, with businesses inside the same app running sales, support and payments through an Indic AI agent on plans from ₹99/month.
 
 ## Status
 
 | Phase | Deliverable | Status |
 |---|---|---|
-| 0 | Research memo: model selection, serving, cost model, risks | **In review** — [`docs/phase-0/research-memo.md`](docs/phase-0/research-memo.md) |
+| 0 | Research memo: product shape, model selection, serving, cost model, risks | **In review** — [`docs/phase-0/research-memo.md`](docs/phase-0/research-memo.md) |
 | 1 | Architecture, data model, API/event schemas, agent graph, security model, monorepo | Not started |
 | 2–10 | Platform MVP → RAG/vision → agents → Hamsa-LM → Edge → Speech → Predictive ML → Flywheel → Security/scale | Not started |
 
