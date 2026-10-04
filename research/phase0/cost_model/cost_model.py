@@ -81,6 +81,32 @@ class VoiceAssumptions:
 
 
 @dataclass
+class ConsumerAssumptions:
+    """Free consumer messenger (person-to-person, groups, calls), per monthly active user.
+
+    Every field is a HYPOTHESIS until Phase 2 beta telemetry exists. Media and call relay
+    bandwidth dominate; the server never holds message history (store-and-forward only)."""
+
+    dau_over_mau: float = 0.60
+    msgs_delivered_per_dau: float = 120.0      # incl. group fan-out
+    media_upload_mb_per_dau: float = 6.0       # photos, voice notes, short video, after client-side compression
+    media_fanout: float = 2.5                  # avg downloads per uploaded object (groups)
+    media_retention_days: float = 30.0         # undelivered/re-download window; then deleted
+    call_min_per_dau: float = 6.0
+    call_relay_share: float = 0.20             # calls that cannot go peer-to-peer and use TURN/SFU
+    call_video_share: float = 0.25
+    audio_kbps: float = 32.0                   # Opus incl. overhead, per direction
+    video_kbps: float = 600.0                  # per direction, low-end-friendly
+    egress_inr_per_gb: float = 2.0             # Indian cloud / colo blended rate; hyperscaler Mumbai ≈ ₹9-10
+    storage_inr_per_gb_month: float = 1.5      # SeaweedFS on owned disks, replicated
+    # Rust gateway + NATS + Cassandra (offline queue, keys, metadata), per MAU-month.
+    messaging_compute_inr_per_mau: float = 0.05
+    otp_inr: float = 0.22                      # transactional SMS OTP, India (MSG91 ₹0.18-0.25 by volume)
+    otp_per_mau_month: float = 0.08            # new sign-ups + re-registrations on device change
+    trust_safety_inr_per_mau: float = 0.05     # abuse report handling, spam model serving, legal requests
+
+
+@dataclass
 class Plan:
     name: str
     price_inr: float          # per month, exclusive of GST
@@ -116,6 +142,8 @@ ASSUMPTIONS_SOURCES = {
                             "first 1,000 service messages per number per month free",
     "UPI MDR": "Zero MDR for P2M <= ₹2,000 and for P2PM small merchants <= ₹1 lakh/month via QR; 0.4% above ₹2,000 "
                "from 15 Oct 2026 (PIB)",
+    "SMS OTP": "MSG91 India transactional OTP ₹0.25 (5k) to ₹0.18 (8.5 lakh) per SMS ex-GST, Oct 2026; DLT entity "
+               "registration ₹5,000 + GST",
 }
 
 
@@ -176,6 +204,39 @@ def whatsapp_channel_cost(p: Plan, t: TextAssumptions, utilisation: float) -> fl
     return max(0.0, replies - WA_FREE_SERVICE_PER_NUMBER) * WA_SERVICE_INR
 
 
+def messenger_cost_per_mau(c: ConsumerAssumptions) -> dict[str, float]:
+    days = 30.0 * c.dau_over_mau
+    media_egress_gb = days * c.media_upload_mb_per_dau * c.media_fanout / 1024.0
+    # Average stored volume = daily uploads x retention window (steady state).
+    media_stored_gb = c.media_upload_mb_per_dau * c.dau_over_mau * c.media_retention_days / 1024.0
+    # A relayed call sends each party's stream out once to the other party.
+    kbps_per_relayed_call = 2 * ((1 - c.call_video_share) * c.audio_kbps + c.call_video_share * (c.audio_kbps + c.video_kbps))
+    relay_gb = days * c.call_min_per_dau * c.call_relay_share * kbps_per_relayed_call * 60 / 8 / 1024 / 1024
+    parts = {
+        "media_egress": media_egress_gb * c.egress_inr_per_gb,
+        "media_storage": media_stored_gb * c.storage_inr_per_gb_month,
+        "call_relay": relay_gb * c.egress_inr_per_gb,
+        "messaging_compute": c.messaging_compute_inr_per_mau,
+        "otp": c.otp_per_mau_month * c.otp_inr,
+        "trust_safety": c.trust_safety_inr_per_mau,
+    }
+    parts["total"] = sum(parts.values())
+    parts["egress_gb"] = media_egress_gb + relay_gb
+    return parts
+
+
+def messenger_sensitivity(c: ConsumerAssumptions) -> list[tuple[str, float]]:
+    cases = {
+        "baseline": {},
+        "hyperscaler egress (₹9.5/GB)": dict(egress_inr_per_gb=9.5),
+        "2x media per user": dict(media_upload_mb_per_dau=12.0),
+        "40% of calls relayed": dict(call_relay_share=0.40),
+        "media kept 90 days": dict(media_retention_days=90.0),
+        "OTP on every device change (0.2/MAU)": dict(otp_per_mau_month=0.20),
+    }
+    return [(name, messenger_cost_per_mau(ConsumerAssumptions(**{**asdict(c), **o}))["total"]) for name, o in cases.items()]
+
+
 def sensitivity(t: TextAssumptions, v: VoiceAssumptions) -> list[tuple[str, float, float]]:
     """Gross margin of the ₹99 plan at full allowance under pessimistic single-variable changes."""
     base_plan = PLANS[0]
@@ -231,6 +292,24 @@ def main() -> None:
     L += ["", "## Sensitivity: ₹99 plan at 100% of allowance", "", "| scenario | ₹ per conversation | gross margin |", "|---|---:|---:|"]
     for name, c, gm in sensitivity(t, v):
         L.append(f"| {name} | {c:.4f} | {gm:.0f}% |")
+
+    c = ConsumerAssumptions()
+    m = messenger_cost_per_mau(c)
+    kirana = PLANS[0]
+    kirana_profit = kirana.price_inr - plan_economics(kirana, t, v, kirana.typical_utilisation)["total_cost"]
+    L += ["", "## Free consumer messenger: cost per monthly active user", "",
+          f"- {c.dau_over_mau:.0%} DAU/MAU, {c.media_upload_mb_per_dau:g} MB media uploaded per DAU (fan-out {c.media_fanout:g}x), "
+          f"{c.call_min_per_dau:g} call min/DAU with {c.call_relay_share:.0%} relayed, egress ₹{c.egress_inr_per_gb:g}/GB. "
+          f"Egress ≈ {m['egress_gb']:.2f} GB per MAU-month.", "",
+          "| component | ₹ per MAU-month |", "|---|---:|"]
+    for k in ("media_egress", "media_storage", "call_relay", "messaging_compute", "otp", "trust_safety", "total"):
+        L.append(f"| {k} | {m[k]:.3f} |")
+    L += ["", f"- Cost of 1M MAU: ₹{m['total'] * 1e6 / 1e5:,.1f} lakh/month. "
+          f"One ₹99 tenant at typical use contributes ₹{kirana_profit:.0f}/month, so each ₹99 tenant covers "
+          f"≈{kirana_profit / m['total']:.0f} free users.", "",
+          "| messenger scenario | ₹ per MAU-month |", "|---|---:|"]
+    for name, val in messenger_sensitivity(c):
+        L.append(f"| {name} | {val:.3f} |")
 
     L += ["", "## Verified price inputs", ""]
     for k, val in ASSUMPTIONS_SOURCES.items():

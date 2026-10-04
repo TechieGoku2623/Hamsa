@@ -47,6 +47,31 @@ All ₹ figures exclude GST. Values marked HYPOTHESIS in `cost_model.py` must be
 | no prefix caching | 0.0772 | 52% |
 | IndiaAI reserved L40S | 0.0503 | 62% |
 
+## Free consumer messenger: cost per monthly active user
+
+- 60% DAU/MAU, 6 MB media uploaded per DAU (fan-out 2.5x), 6 call min/DAU with 20% relayed, egress ₹2/GB. Egress ≈ 0.32 GB per MAU-month.
+
+| component | ₹ per MAU-month |
+|---|---:|
+| media_egress | 0.527 |
+| media_storage | 0.158 |
+| call_relay | 0.112 |
+| messaging_compute | 0.050 |
+| otp | 0.018 |
+| trust_safety | 0.050 |
+| total | 0.916 |
+
+- Cost of 1M MAU: ₹9.2 lakh/month. One ₹99 tenant at typical use contributes ₹73/month, so each ₹99 tenant covers ≈79 free users.
+
+| messenger scenario | ₹ per MAU-month |
+|---|---:|
+| baseline | 0.916 |
+| hyperscaler egress (₹9.5/GB) | 3.315 |
+| 2x media per user | 1.601 |
+| 40% of calls relayed | 1.028 |
+| media kept 90 days | 1.232 |
+| OTP on every device change (0.2/MAU) | 0.942 |
+
 ## Verified price inputs
 
 - GPU prices: L40S (IndiaAI on-demand): ₹67.5/h — compute.indiaai.gov.in price calculator, Mar 2026
@@ -55,3 +80,4 @@ All ₹ figures exclude GST. Values marked HYPOTHESIS in `cost_model.py` must be
 - GPU prices: H100 (cheapest Indian on-demand): ₹192.48/h — maapan.ai/prices/h100, 6 Sep 2026
 - WhatsApp India rates: Meta rate card effective 1 Oct 2026: marketing ₹0.8631, utility/auth/service ₹0.1150, first 1,000 service messages per number per month free
 - UPI MDR: Zero MDR for P2M <= ₹2,000 and for P2PM small merchants <= ₹1 lakh/month via QR; 0.4% above ₹2,000 from 15 Oct 2026 (PIB)
+- SMS OTP: MSG91 India transactional OTP ₹0.25 (5k) to ₹0.18 (8.5 lakh) per SMS ex-GST, Oct 2026; DLT entity registration ₹5,000 + GST
