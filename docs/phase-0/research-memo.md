@@ -1,6 +1,6 @@
 # Hamsa — Phase 0 Research Memo
 
-Status: **for approval** · Date: 4 Oct 2026 · Scope: model selection, serving, speech/vision/retrieval components, platform components, cost model, compliance, risks.
+Status: **for approval** · Date: 4 Oct 2026 · Scope: product shape (standalone messenger), model selection, serving, speech/vision/retrieval components, platform components, cost model, compliance, risks.
 
 Every version, licence and price below was checked against a primary source (model card, release page, gazette, or rate card) on or shortly before the date above. Two pieces of evidence were **measured by us** rather than quoted:
 
@@ -12,16 +12,75 @@ Every version, licence and price below was checked against a primary source (mod
 ## 1. Executive summary
 
 1. **₹99/month is economically viable** if (a) we own the chat channel instead of reselling WhatsApp, (b) ~50% of customer messages are resolved without an LLM, and (c) the large-model fallback stays at ≤3% of messages. Modelled gross margin on the ₹99 plan is 73% at typical usage and 58% at full allowance; all-in variable cost is ~₹0.06 per AI-handled conversation. At the ₹99 tier the real cost drivers are support/onboarding and payment collection, not GPUs.
-2. **WhatsApp cannot be the default channel at these prices.** From 1 Oct 2026 Meta charges ₹0.115 per service reply in India after 1,000 free per number per month. A ₹299 tenant at typical usage would incur ≈₹299/month in WhatsApp fees alone. Hamsa's default channel must be its own zero-install chat link/PWA; WhatsApp is an optional pass-through add-on billed at cost.
+2. **Hamsa is its own messenger, like WhatsApp, not a layer on top of it** (revised 4 Oct 2026, §1A). People install Hamsa, sign up with their phone number, and use it for personal chats, groups, voice notes and calls, all end-to-end encrypted. Businesses and their AI agents live inside the same app. Consumers use it free; businesses pay. This also removes Meta's per-message fees: from 1 Oct 2026 Meta charges ₹0.115 per service reply in India after 1,000 free per number per month, which would cost a ₹299 tenant ≈₹299/month. A free user costs us ≈₹0.92/month, so one ₹99 business pays for ≈79 free users.
 3. **Tokenizer choice is a 2× cost lever on native-script Indic text and almost irrelevant for romanized text.** Measured mean native-script fertility: Sarvam 2.34, Gemma 4 3.18, gpt-oss 4.05, Qwen3.5 4.80 tokens/word. Romanized fertility is ≈2.6–2.9 for every modern tokenizer.
 4. **Sarvam's tokenizer is a Gemma-family vocabulary with ~23k slots reassigned to Indic scripts** (we measured 91% vocabulary overlap with Gemma 4, 233k tokens at identical IDs). This makes "Gemma 4 base + Sarvam-style Indic vocab surgery" a cheap, low-risk path for Hamsa-LM.
 5. **Recommended model plan (two tracks):**
    - *Hamsa-LM v0 (Phases 3–4):* serve **Sarvam-30B** (Apache-2.0, MoE 30B total / 2.4B active, native Indic + romanized + code-mixed, tool calling) on FP8 as the production model. It breaks the 3–8B guideline on *total* parameters, but its compute per token is that of a 2.4B model and it has the best Indic tokenizer we measured.
    - *Hamsa-LM v1 (Phase 5 student):* distil into a **Gemma 4 E4B** student with Indic vocabulary extension (primary) and **Qwen3.5-4B** (control; stronger agentic scores, 2× worse native-script tokenizer). Pick by quality-per-₹ on Hamsa-Bench.
 6. **Licence traps found** (these change the stack the brief proposed): ScyllaDB is no longer open source (use Apache Cassandra 5); MinIO Community is archived (use SeaweedFS); Redis 8 is AGPL/RSAL/SSPL (use Valkey 9, BSD); Redpanda is BSL (use NATS JetStream for the backbone, Kafka-API only if needed); Surya OCR weights are revenue-capped and forbid competing use (exclude); Sarvam-1 is non-commercial (exclude); Kimi K3 has attribution clauses (avoid as a teacher).
-7. **Compliance dates that shape the roadmap:** DPDP Rules notified 13 Nov 2025 — Consent Manager rules live 13 Nov 2026, bulk of obligations live **13 May 2027**. UPI MDR stays zero for P2M ≤ ₹2,000 and for small P2PM merchants; 0.4% above ₹2,000 from 15 Oct 2026. TRAI's Sept 2026 TCCCPR amendment hits our SMS/PSTN legs. Hamsa must not hold merchant funds (avoid needing an RBI Payment Aggregator licence).
+7. **Compliance dates that shape the roadmap:** DPDP Rules notified 13 Nov 2025 — Consent Manager rules live 13 Nov 2026, bulk of obligations live **13 May 2027**. UPI MDR stays zero for P2M ≤ ₹2,000 and for small P2PM merchants; 0.4% above ₹2,000 from 15 Oct 2026. TRAI's Sept 2026 TCCCPR amendment hits our SMS/PSTN legs. Hamsa must not hold merchant funds (avoid needing an RBI Payment Aggregator licence). As a messenger, Hamsa must build DoT SIM binding (deadline for named apps 31 Dec 2026) and plan for the unresolved traceability rule at 50 lakh users.
 
 **Decisions requested** are listed in §12.
+
+---
+
+## 1A. Product shape: a standalone messenger (revised 4 Oct 2026)
+
+Hamsa is a complete messaging app in the WhatsApp mould: install, register with a phone number, chat one-to-one and in groups, send photos, documents and voice notes, make voice and video calls, and use it from a linked desktop or web companion. Businesses are first-class accounts in the same app: catalog, AI agent, orders, UPI checkout, bookings. The earlier draft treated Hamsa as a business inbox reached through a browser link; that link stays, but only as a no-install entry point that upgrades into the app.
+
+**What changes from the earlier draft**
+
+| Area | Earlier draft | Now |
+|---|---|---|
+| Product | Business chat inbox + AI agent | Full personal messenger + business layer |
+| Clients | Zero-install PWA chat link | Android-first native app (target: runs well on 2–3 GB RAM phones, small download), iOS, linked web/desktop; chat link kept as the onboarding wedge |
+| Identity | Anonymous link sessions | Phone number + SMS OTP, SIM-bound on the device (DoT directive, below) |
+| Encryption | MLS mentioned for platform | End-to-end encryption by default for every personal chat, group and call |
+| Server data | Full conversation history | No message history on servers: store-and-forward queue deleted on delivery; encrypted backups go to the user's own Google Drive / iCloud |
+| Cost base | Per business tenant | Plus free consumers: ≈₹0.92 per monthly active user (MAU) |
+
+**End-to-end encryption choice**
+
+| Option | Licence | For | Against |
+|---|---|---|---|
+| **MLS (RFC 9420) via OpenMLS 0.9.0** — recommended | MIT | IETF standard; group changes cost O(log n), so large groups and multi-device are cheap; GSMA chose MLS for RCS E2EE (RCC.16 v4.0, Jul 2026); already in our stack; one protocol for 1:1 and groups | Younger in mass-market apps than Signal's protocol; OpenMLS does not test Android/iOS builds, so we own mobile integration; post-quantum ciphersuite support to verify in Phase 1 |
+| Signal protocol via libsignal v0.96.4 | **AGPL-3.0-only** | Most battle-tested 1:1 design; already post-quantum (PQXDH + SPQR "Triple Ratchet") | Linking it into our apps obliges us to publish the full client source under AGPL; WhatsApp uses a separately licensed implementation. Group messaging uses sender keys, weaker post-compromise security than MLS |
+
+Design: each device is an MLS leaf; linked devices join by QR scan from the phone. Calls use WebRTC peer-to-peer where possible, with LiveKit SFU + SFrame (RFC 9605) for group calls and TURN relay (coturn, BSD) as fallback; call keys derive from the MLS group. Push notifications carry no content (FCM/APNs wake the app, which fetches and decrypts). Contact discovery uploads hashed numbers with strict rate limits; phone-number hashes are brute-forceable, so private contact discovery is a later hardening item. An external cryptography audit is a launch gate.
+
+**Where AI may and may not look**
+
+- **Personal chats and groups:** server-side AI never sees content. AI features there (reply suggestions, translation, Indic voice-note transcription) run on-device via Hamsa-Edge, or only when the user explicitly shares something with the Hamsa assistant, which is its own clearly labelled chat.
+- **Business chats:** the business's endpoint *is* its AI agent, operated by Hamsa on the business's behalf. Messages are encrypted to that endpoint and decrypted inside Hamsa's business infrastructure (the same model as WhatsApp businesses that use a hosted provider). The chat header must say so ("<Business> uses Hamsa AI to reply"). Enterprise tenants can require GPU TEE processing (§8).
+
+**India-specific rules for messengers (verified Oct 2026)**
+
+- **SIM binding.** On 28 Nov 2025 the Department of Telecommunications (DoT), under the Telecom Cyber Security Rules 2024, directed app-based communication services that identify users by Indian mobile number (WhatsApp, Telegram, Signal, Arattai, Snapchat, ShareChat, JioChat, Josh) to keep the app bound to the SIM in the device. The deadline was extended to **31 Dec 2026**; the six-hour web logout was replaced by risk-based logout on suspected fraud. Hamsa is not named, but a new entrant should build SIM binding into v1 (Android first; iOS has platform constraints Apple is still addressing).
+- **Traceability.** IT Rules 2021 Rule 4(2) requires a *significant social media intermediary* (≥ 50 lakh registered Indian users) offering messaging to identify the "first originator" of a message on a court or Section 69 order. WhatsApp's challenge is still pending in the Delhi High Court (last heard Aug 2024). Complying would require tagging every message, which conflicts with end-to-end encryption. Position: do not build message fingerprinting; get a legal opinion well before 50 lakh users. This is the largest unresolved regulatory risk for the product (R13).
+- **Intermediary duties at any size:** grievance officer, takedown timelines, user-report flow (the reporter's device sends the reported messages, decrypted, to trust & safety). At the 50 lakh threshold: Chief Compliance Officer, nodal contact, resident grievance officer, monthly compliance reports.
+- **DPDP:** for personal messaging Hamsa is the Data Fiduciary for account data and metadata. Children's-data rules (verifiable parental consent under 18) bind from 13 May 2027, so age declaration and a parental-consent flow are needed at sign-up.
+- **OTP SMS** needs DLT registration (₹5,000 + GST entity fee) and costs ₹0.18–0.25 per OTP.
+
+**Market reality: why the business side is the wedge**
+
+Zoho's Arattai is the cautionary data point. Downloads jumped from 2.6M (Sep 2025) to 13.8M (Oct 2025) and fell to ≈0.2M (Nov 2025); MAU halved from 14M to 7.4M within a month; group E2EE only shipped in Sep 2026. A general-purpose WhatsApp alternative does not move people on features alone, because a messenger is only useful if your contacts are on it. Hamsa's growth loop is different: every merchant on Hamsa sends its customers a link to order, pay by UPI and get updates. The first chat opens in the browser; installing the app gives order history, notifications and voice. Once installed, personal chat and groups are what keep people. Measured success is *customers acquired per merchant* and *share of those who start a personal chat*, not downloads.
+
+**Cost of free users** (`cost_model.py`, all usage figures are hypotheses until beta telemetry)
+
+| component | ₹ per MAU-month |
+|---|---:|
+| media egress (6 MB uploaded per daily user, 2.5× fan-out) | 0.53 |
+| media storage (30-day window, then deleted) | 0.16 |
+| call relay (20% of calls via TURN/SFU) | 0.11 |
+| messaging servers (gateway, NATS, Cassandra) | 0.05 |
+| OTP SMS | 0.02 |
+| trust & safety | 0.05 |
+| **total** | **0.92** |
+
+1M MAU ≈ ₹9.2 lakh/month. A ₹99 tenant at typical use contributes ≈₹73/month, i.e. ≈79 free users. The dominant lever is **bandwidth price**: on hyperscaler egress (≈₹9.5/GB) the cost rises to ₹3.3/MAU, so media must be served from Indian cloud/colocation with cheap peering and a CDN. Next levers: aggressive client-side compression (WebP/AVIF images, Opus voice notes, capped video bitrates) and deleting media after delivery.
+
+**New engineering scope** (folds into Phase 1 architecture): Android (Kotlin) and iOS (Swift) clients over a shared Rust core (MLS, local encrypted store, sync) exposed via UniFFI; registration + SIM binding service; KeyPackage directory; media service; contact discovery; content-free push; TURN + LiveKit calling; linked-device protocol; encrypted backup; abuse and spam detection on metadata and user reports. Messenger core has to be solid before AI features matter, so it moves ahead of the AI work in the build order.
 
 ---
 
@@ -98,7 +157,7 @@ Therefore **Phase 0.5 deliverable (before Phase 3 model lock): Hamsa-Bench v0** 
 
 ## 3. Hamsa-Edge (on-device)
 
-- **Runtime:** Transformers.js **4.3.0** (v4 released Feb 2026, C++ WebGPU runtime shared with ONNX Runtime) depending on `onnxruntime-web 1.31.0-dev`; pin the exact ORT version Transformers.js expects, otherwise the WebGPU backend fails to load. WASM fallback for devices without WebGPU.
+- **Runtime:** Transformers.js **4.3.0** (v4 released Feb 2026, C++ WebGPU runtime shared with ONNX Runtime) depending on `onnxruntime-web 1.31.0-dev`; pin the exact ORT version Transformers.js expects, otherwise the WebGPU backend fails to load. WASM fallback for devices without WebGPU. This covers the web chat link and web companion; the native Android/iOS apps (§1A) run the same ONNX models through ONNX Runtime Mobile, which also lets on-device AI work inside end-to-end encrypted personal chats.
 - **Budget reality:** target customers include low-end Android phones on prepaid data. Initial edge bundle ≤ 15 MB, lazily loaded after first message, cached in the Cache Storage API. That rules out generative LLMs on the customer side; Qwen3.5-0.8B (~1.6 GB BF16, ~0.5 GB INT4) and Gemma 4 E2B are owner-app-only experiments on capable devices.
 - **Customer-side models (encoders, INT8):** language/script ID (IndicLID-style, fastText or small transformer), transliteration normalisation (IndicXlit-style seq2seq, or rule-based for the top 5 scripts), intent + FAQ matcher (a distilled 20–60M multilingual encoder, starting from MuRIL (Apache-2.0) or IndicBERT v2 (MIT)), PII masking (regex for phone/Aadhaar/PAN/card + a tiny NER).
 - **Metric:** `% messages resolved on-device` and `% messages pre-processed on-device` are first-class product metrics from Phase 6; the cost model assumes 20% resolved on-device.
@@ -230,7 +289,8 @@ Source: `research/phase0/cost_model/cost_model.py` → `RESULTS.md`. Prices excl
 2. **Voice needs metered pricing above the included minutes**, and web voice should be pushed over PSTN; PSTN is 64% of phone-minute cost.
 3. **At ₹99, fixed per-tenant cost dominates at typical usage**: ₹16 (support ₹8, infra ₹6, subscription collection ₹2) versus ₹10 of AI + voice; even at full allowance variable cost is only ₹25. Self-serve onboarding (catalog from photos, auto-generated FAQ) is an economic requirement, not polish.
 4. **Reserve IndiaAI capacity** for the steady-state latency pool; keep on-demand/spot for peaks and batch.
-5. **Avoid OTP SMS/WhatsApp authentication costs:** customers chat anonymously via link; identity is established at payment (UPI VPA) or by optional phone verification only when the business needs it.
+5. **Keep sign-up cheap:** app users register once by SMS OTP (≈₹0.02 per MAU-month amortised); first-time buyers arriving by merchant link can chat and pay before installing or registering, with identity established at payment (UPI VPA).
+6. **Free consumers are affordable but bandwidth-sensitive** (§1A): ≈₹0.92 per MAU-month, 1M MAU ≈ ₹9.2 lakh/month; hyperscaler egress would multiply that by ~3.6×.
 
 ---
 
@@ -250,6 +310,11 @@ Source: `research/phase0/cost_model/cost_model.py` → `RESULTS.md`. Prices excl
 | R10 | Infra licence drift (as happened with Scylla, MinIO, Redis, Redpanda) | Medium | Medium | Prefer foundation-governed projects (Apache, Linux Foundation, CNCF); quarterly licence audit in CI (SBOM + licence scanner) |
 | R11 | Fertility advantage doesn't hold in real traffic (mostly romanized) | Medium | Low | Measure script mix in Phase 2; romanized cost is already ≈ parity across tokenizers |
 | R12 | Spam/abuse of free-ish broadcast channel harms deliverability and trust | Medium | High | Opt-in only broadcasts; uplift targeting (Phase 8); per-tenant rate limits; graph-based abuse detection |
+| R13 | Traceability (IT Rules Rule 4(2)) enforced against E2EE messengers once Hamsa passes 50 lakh users | Medium | High | No message fingerprinting; legal opinion before threshold; track WhatsApp's Delhi HC case; minimise stored metadata |
+| R14 | Network effect: people install, then drift back to WhatsApp (Arattai lost half its MAU in a month) | High | High | Merchant-led growth loop (§1A); chat link works before install; measure customers per merchant and personal-chat activation |
+| R15 | SIM binding on iOS and multi-device not technically ready by 31 Dec 2026 | Medium | Medium | Android-first; risk-based companion logout; follow DoT clarifications issued to named apps |
+| R16 | E2EE implementation bugs (MLS state desync, key loss across devices) | Medium | High | External crypto audit as launch gate; recovery procedures modelled on GSMA RCC.16 v4.0; fuzzing of group state |
+| R17 | Abuse/CSAM on encrypted chats cannot be scanned server-side | High | High | User reports with decrypted evidence, metadata and forwarding-rate signals, forward limits on viral content, rapid account action |
 
 ---
 
@@ -267,7 +332,7 @@ Source: `research/phase0/cost_model/cost_model.py` → `RESULTS.md`. Prices excl
 ## 12. Decisions requested
 
 1. **Model plan:** approve Sarvam-30B as Hamsa-LM v0 and Gemma 4 E4B (+ vocab surgery) vs Qwen3.5-4B as the Phase 5 student bake-off — noting Sarvam-30B exceeds the 3–8B total-parameter guideline (2.4B active).
-2. **Channel strategy:** own zero-install chat link/PWA as default; WhatsApp as a pass-through paid add-on.
+2. **Product shape (§1A):** Hamsa is a standalone WhatsApp-style messenger — phone-number sign-up, end-to-end encrypted personal chats, groups and calls, free for consumers — with businesses and AI agents inside it; MLS/OpenMLS (not AGPL libsignal) for encryption; no server-side AI on personal chats; merchant links as the growth wedge. WhatsApp Business is not part of v1.
 3. **Stack substitutions:** Cassandra 5 (not ScyllaDB), Valkey 9 (not Redis), SeaweedFS (not MinIO), NATS JetStream as backbone (not Redpanda).
 4. **Payments posture:** never hold merchant funds; direct UPI intent for small merchants, licensed PAs for others.
 5. **Plan ladder:** ₹99 / ₹299 / ₹999 / ₹2,999 / Enterprise with the allowances above and metered voice overage.
@@ -294,7 +359,11 @@ python cost_model/cost_model.py                               # stdlib only
 - Gemma 4 model card (last updated 30 Jul 2026), Google blog and Open Source blog (Apache-2.0, 2 Apr 2026), HF blog.
 - vLLM v0.29.0 release notes (9 Sep 2026); SGLang v0.5.18 (22 Aug 2026); TRL v1.0 release; Unsloth RL guide.
 - MCP specification 2026-07-28 and changelog; LangChain/LangGraph changelog (v1.2.0); Temporal LangGraph plugin docs/blog (16 Jul 2026).
-- OpenMLS crates.io (0.9.0, 25 Aug 2026) and changelog.
+- OpenMLS crates.io (0.9.0, 25 Aug 2026) and changelog; libsignal repo (AGPL-3.0, v0.96.4) and Signal SPQR blog; GSMA RCC.16 RCS E2EE specification v4.0 (21 Jul 2026).
+- DoT press release on SIM-binding directions (28 Nov 2025); Economic Times and MediaNama on the extension to 31 Dec 2026 and risk-based logout (Apr 2026).
+- IT (Intermediary Guidelines) Rules 2021, Rule 4(2) (MeitY, updated text); MediaNama/LiveLaw on the pending WhatsApp traceability challenge (2026).
+- Arattai adoption: Moneycontrol and Financial Express (Sensor Tower data, Nov–Dec 2025); India Today on group E2EE (25 Sep 2026).
+- MSG91 India OTP pricing and DLT FAQs (Oct 2026).
 - Transformers.js v4 blog (9 Feb 2026), npm @huggingface/transformers 4.3.0.
 - Qwen3-Embedding/Reranker repo; LingoIITGN/qwen-indic-v1 card; pgvector 0.8.4 (ParadeDB PR #5475); pg_search 0.26.0 (PGXN).
 - AI4Bharat IndicConformer, IndicF5, Indic Parler-TTS cards; ARTPARK-IISc SraVaani-0.5-live card; JoshTalks Human-1 paper (arXiv 2604.23295) and card; LiveKit Agents 1.6.1 / Turn Detector v1.
