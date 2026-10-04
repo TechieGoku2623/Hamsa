@@ -1,0 +1,141 @@
+{
+  "meta": {
+    "corpus": "ai4bharat/Bhasha-Abhijnaanam (native + romanized, 22 scheduled languages)",
+    "max_per_lang": 400,
+    "seed": 13,
+    "word_definition": "whitespace split",
+    "special_tokens": "excluded"
+  },
+  "tokenizers": {
+    "qwen3.5": {
+      "repo": "Qwen/Qwen3.5-4B",
+      "vocab_size": 248070,
+      "native_fertility_mean": 4.803,
+      "native_fertility_worst": 16.389,
+      "native_worst_lang": "Manipuri|Meetei-Mayek|native",
+      "romanized_fertility_mean": 2.803,
+      "probe_en_tokens_per_msg": 15.17,
+      "probe_indic_tokens_per_msg_mean": 24.13
+    },
+    "gemma4": {
+      "repo": "google/gemma-4-E4B-it",
+      "vocab_size": 262144,
+      "native_fertility_mean": 3.179,
+      "native_fertility_worst": 12.361,
+      "native_worst_lang": "Manipuri|Meetei-Mayek|native",
+      "romanized_fertility_mean": 2.618,
+      "probe_en_tokens_per_msg": 15,
+      "probe_indic_tokens_per_msg_mean": 17.2
+    },
+    "sarvam-30b": {
+      "repo": "sarvamai/sarvam-30b",
+      "vocab_size": 262144,
+      "native_fertility_mean": 2.342,
+      "native_fertility_worst": 3.531,
+      "native_worst_lang": "Manipuri|Bengali|native",
+      "romanized_fertility_mean": 2.619,
+      "probe_en_tokens_per_msg": 15,
+      "probe_indic_tokens_per_msg_mean": 16.43
+    },
+    "sarvam-105b": {
+      "repo": "sarvamai/sarvam-105b",
+      "vocab_size": 262144,
+      "native_fertility_mean": 2.342,
+      "native_fertility_worst": 3.531,
+      "native_worst_lang": "Manipuri|Bengali|native",
+      "romanized_fertility_mean": 2.619,
+      "probe_en_tokens_per_msg": 15,
+      "probe_indic_tokens_per_msg_mean": 16.43
+    },
+    "sarvam-1": {
+      "repo": "sarvamai/sarvam-1",
+      "vocab_size": 68096,
+      "native_fertility_mean": 4.537,
+      "native_fertility_worst": 17.36,
+      "native_worst_lang": "Manipuri|Meetei-Mayek|native",
+      "romanized_fertility_mean": 3.552,
+      "probe_en_tokens_per_msg": 17,
+      "probe_indic_tokens_per_msg_mean": 19.39
+    },
+    "gpt-oss": {
+      "repo": "openai/gpt-oss-20b",
+      "vocab_size": 200019,
+      "native_fertility_mean": 4.053,
+      "native_fertility_worst": 16.389,
+      "native_worst_lang": "Manipuri|Meetei-Mayek|native",
+      "romanized_fertility_mean": 2.62,
+      "probe_en_tokens_per_msg": 14.42,
+      "probe_indic_tokens_per_msg_mean": 18.89
+    },
+    "deepseek-v4": {
+      "repo": "deepseek-ai/DeepSeek-V4-Flash",
+      "vocab_size": 129280,
+      "native_fertility_mean": 4.957,
+      "native_fertility_worst": 11.875,
+      "native_worst_lang": "Manipuri|Meetei-Mayek|native",
+      "romanized_fertility_mean": 2.863,
+      "probe_en_tokens_per_msg": 14.58,
+      "probe_indic_tokens_per_msg_mean": 27.12
+    },
+    "ministral-3": {
+      "repo": "mistralai/Ministral-3-8B-Instruct-2512",
+      "vocab_size": 131072,
+      "native_fertility_mean": 5.029,
+      "native_fertility_worst": 18.244,
+      "native_worst_lang": "Oriya|Oriya|native",
+      "romanized_fertility_mean": 2.863,
+      "probe_en_tokens_per_msg": 15.33,
+      "probe_indic_tokens_per_msg_mean": 22.69
+    },
+    "phi-4-mini": {
+      "repo": "microsoft/Phi-4-mini-instruct",
+      "vocab_size": 200029,
+      "native_fertility_mean": 4.053,
+      "native_fertility_worst": 16.389,
+      "native_worst_lang": "Manipuri|Meetei-Mayek|native",
+      "romanized_fertility_mean": 2.62,
+      "probe_en_tokens_per_msg": 14.42,
+      "probe_indic_tokens_per_msg_mean": 18.89
+    },
+    "lfm2": {
+      "repo": "LiquidAI/LFM2-2.6B",
+      "vocab_size": 64400,
+      "native_fertility_mean": 12.194,
+      "native_fertility_worst": 27.528,
+      "native_worst_lang": "Malayalam|Malayalam|native",
+      "romanized_fertility_mean": 3.019,
+      "probe_en_tokens_per_msg": 15.08,
+      "probe_indic_tokens_per_msg_mean": 65.26
+    },
+    "krutrim-2": {
+      "repo": "krutrim-ai-labs/Krutrim-2-instruct",
+      "vocab_size": 131072,
+      "native_fertility_mean": 5.029,
+      "native_fertility_worst": 18.244,
+      "native_worst_lang": "Oriya|Oriya|native",
+      "romanized_fertility_mean": 2.863,
+      "probe_en_tokens_per_msg": 15.33,
+      "probe_indic_tokens_per_msg_mean": 22.69
+    },
+    "param-1": {
+      "repo": "bharatgenai/Param-1-2.9B-Instruct",
+      "vocab_size": 256011,
+      "native_fertility_mean": 5.994,
+      "native_fertility_worst": 18.298,
+      "native_worst_lang": "Oriya|Oriya|native",
+      "romanized_fertility_mean": 2.652,
+      "probe_en_tokens_per_msg": 15,
+      "probe_indic_tokens_per_msg_mean": 20.68
+    },
+    "indictok-256k": {
+      "repo": "vivekvar/indictok-256k",
+      "vocab_size": 256000,
+      "native_fertility_mean": 2.006,
+      "native_fertility_worst": 3.029,
+      "native_worst_lang": "Santali|Ol-Chiki|native",
+      "romanized_fertility_mean": 3.084,
+      "probe_en_tokens_per_msg": 15.83,
+      "probe_indic_tokens_per_msg_mean": 15.73
+    }
+  }
+}
