@@ -35,9 +35,10 @@ def test_hinglish_order_to_upi_and_owner_confirmation(client):
     assert "Basmati" in r["text"] and "Sona Masoori" in r["text"]  # ambiguous -> clarify
 
     r = _say(client, guest["token"], conv["id"], "1 kg basmati")
-    assert "₹244" in r["text"]
+    assert "₹244" in r["text"] and r["meta"]["lang"] == "hi_latn"  # no language evidence -> stays Hinglish
 
     r = _say(client, guest["token"], conv["id"], "confirm")
+    assert r["meta"]["lang"] == "hi_latn" and "ho gaya" in r["text"]
     code = r["meta"]["order_code"]
     action = r["meta"]["actions"][0]
     assert action["type"] == "upi_pay" and action["amount_paise"] == 24400

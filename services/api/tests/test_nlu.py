@@ -1,6 +1,6 @@
 import pytest
 
-from hamsa.agent.lang import detect, normalize_digits
+from hamsa.agent.lang import detect, detect_in_context, normalize_digits
 from hamsa.agent.nlu import CatalogEntry, convert_qty, detect_intents, find_mentions, group_overlaps
 
 CATALOG = [
@@ -24,6 +24,13 @@ CATALOG = [
 ])
 def test_language(text, lang):
     assert detect(text) == lang
+
+
+def test_language_is_sticky_only_without_evidence():
+    assert detect_in_context("1 kg basmati", "hi_latn") == "hi_latn"
+    assert detect_in_context("confirm", "ta") == "ta"
+    assert detect_in_context("I want 1 kg basmati please", "hi_latn") == "en"
+    assert detect_in_context("चीनी", "en") == "hi"
 
 
 def test_indic_digits_normalised():

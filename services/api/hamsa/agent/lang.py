@@ -98,6 +98,23 @@ def detect(text: str) -> str:
     return "en"
 
 
+_ENGLISH_MARKERS = {
+    "i", "me", "my", "we", "you", "your", "the", "is", "are", "am", "want", "need", "please", "send", "give", "what",
+    "how", "when", "where", "do", "does", "can", "have", "and", "of", "for", "to", "it", "this", "that", "show", "much",
+    "order", "thanks", "thank", "hello", "hi", "hey", "yes", "no", "ok", "okay",
+}
+
+
+def detect_in_context(text: str, previous: str | None) -> str:
+    """Like detect(), but a Latin-script message with no language evidence ("1 kg basmati", "confirm")
+    keeps the conversation's previous language instead of flipping to English."""
+    lang = detect(text)
+    if lang != "en" or not previous:
+        return lang
+    words = set(_WORD.findall(text.lower()))
+    return "en" if words & _ENGLISH_MARKERS else previous
+
+
 def script_of(text: str) -> str:
     counts = script_counts(text)
     return counts.most_common(1)[0][0] if counts else "Latn"

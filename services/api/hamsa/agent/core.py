@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models import Business, BusinessMessage, CatalogItem, Conversation, Order, now
 from ..payments import format_inr
 from . import tools
-from .lang import detect, script_of
+from .lang import detect_in_context, script_of
 from .lexicon import GROCERY_SYNONYMS
 from .llm import TOOLS, LLMClient, parse_args
 from .nlu import convert_qty, detect_intents, find_mentions, group_overlaps, prepare
@@ -54,7 +54,8 @@ class BusinessAgent:
         self, session: AsyncSession, conv: Conversation, biz: Business, customer_id: str, text: str,
         history: list[BusinessMessage] | None = None,
     ) -> AgentReply:
-        lang = detect(text)
+        previous = next((m.meta.get("lang") for m in reversed(history or []) if m.sender_type == "agent" and m.meta), None)
+        lang = detect_in_context(text, previous)
         catalog_rows = await tools.load_catalog(session, biz.id)
         catalog = {c.sku: c for c in catalog_rows}
         ctx = _Ctx(self, session, conv, biz, customer_id, lang, catalog)
