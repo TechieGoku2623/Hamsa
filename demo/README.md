@@ -1,25 +1,34 @@
 # Hamsa product demo
 
-`hamsa-demo.html` is a self-playing, ~57 s animated demo of Hamsa (sample data). Open it in any browser:
+`hamsa-demo.html` is a self-playing animated demo of Hamsa (sample data). Open it in any browser:
 
 * **Pause / Restart** buttons at the top, or press Space.
 * Click a chapter (1–6) to jump; earlier scenes are replayed instantly so the state is correct.
 * `?autoplay=0` loads it paused.
+* `?subs=0` hides burned-in subtitles (used in pro recordings by default).
+* `?layout=vertical` and `?cut=short` drive the 9:16, ~30 s vertical cut.
 * It follows the system dark mode and `prefers-reduced-motion`, and stacks to one column under 860 px.
 
-## Re-record the videos
+Silent baseline videos (unchanged by the pro pipeline): `hamsa-demo.mp4`, `hamsa-demo-vertical.mp4`.
 
-Requires Python 3.10+, ffmpeg on `PATH`, and network access (Google Fonts).
+## Pro video (voice, subtitles, taps, zooms, music)
+
+Requires Python 3.10+, ffmpeg on `PATH`, Playwright Chromium, and network access (Google Fonts + edge-tts).
 
 ```bash
-pip install playwright && playwright install chromium
-python demo/record.py                  # hamsa-demo.mp4 (1600x900) + hamsa-demo-vertical.mp4 (1080x1920)
-python demo/record.py --only landscape
+python -m venv demo/.venv && demo/.venv/bin/pip install playwright edge-tts
+demo/.venv/bin/playwright install chromium
+python demo/tts.py                  # English voiceover
+python demo/tts.py --lang hi        # Hindi voiceover
+python demo/record.py               # 16:9 pro video
+python demo/record_vertical.py      # 9:16, 30 s cut
 ```
 
-The page is recorded at 1600x900 (and 1080x1920 for the vertical cut) with the Pause/Restart controls hidden. The
-recorder trims the lead-in (page load and font wait) and encodes H.264, 30 fps, yuv420p, faststart.
+Outputs:
 
-During each recording it saves screenshots at 10 s, 30 s and 50 s to `demo/screenshots/` and checks the layout:
-nothing extends past the viewport, no clipped text, and no overlapping messages, cards, phone or console. It exits
-non-zero if a check fails.
+* `demo/hamsa-demo-pro.mp4` — 1600×900, narration, subtitles, tap ripples, camera zooms, optional music.
+* `demo/hamsa-demo-vertical.mp4` — 1080×1920 short cut with the same audio pipeline.
+
+Add optional background music at `demo/assets/music.mp3` (royalty-free; never downloaded automatically). Without it, the scripts print a note and export voice only.
+
+During `record.py`, layout is checked at several points; extracted QA frames land in `demo/_video/`.

@@ -53,7 +53,22 @@ button { font: inherit; cursor: pointer; }
 .chapter span.lbl { position: relative; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* stage */
-.stage { display: grid; grid-template-columns: 340px 1fr; gap: 36px; align-items: start; justify-content: center; }
+.stage { position: relative; display: grid; grid-template-columns: 340px 1fr; gap: 36px; align-items: start; justify-content: center; }
+.stage-viewport { position: relative; grid-column: 1 / -1; display: grid; grid-template-columns: 340px 1fr; gap: 36px; align-items: start; overflow: hidden; border-radius: 4px; }
+.stage-inner { grid-column: 1 / -1; display: grid; grid-template-columns: 340px 1fr; gap: 36px; align-items: start; transform-origin: 0 0; will-change: transform; }
+.fx-layer { position: absolute; inset: 0; pointer-events: none; z-index: 8; overflow: hidden; }
+.tap-dot { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: rgba(255,255,255,.92); box-shadow: 0 0 0 2px rgba(20,33,31,.25); z-index: 2; }
+.tap-rip { position: absolute; width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%; border: 3px solid var(--turmeric); background: rgba(227,162,26,.25); z-index: 1; transform: translate(-50%, -50%) scale(1); opacity: .95; }
+.subs { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 9; max-width: min(720px, 92%); pointer-events: none; opacity: 0; transition: opacity .35s ease; }
+.subs.on { opacity: 1; }
+.subs span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-align: center; font-family: var(--body); font-size: clamp(22px, 1.45vw, 26px); font-weight: 600; line-height: 1.35; color: #fff; background: rgba(12, 20, 19, .72); padding: 10px 18px; border-radius: 999px; box-shadow: 0 8px 28px rgba(0,0,0,.22); }
+body.layout-vertical { zoom: 1.5; overflow: hidden; }
+body.layout-vertical .app { height: calc(100vh / 1.5); padding-top: 22px; }
+body.layout-vertical .stage-viewport, body.layout-vertical .stage-inner { grid-template-columns: 1fr; gap: 18px; }
+body.layout-vertical .stage { flex: 1; min-height: 0; grid-template-rows: auto minmax(0, 1fr); align-items: stretch; padding-bottom: 22px; }
+body.layout-vertical .console { height: auto; min-height: 0; }
+body.layout-vertical .subs { bottom: 28px; max-width: 94%; }
+#recordCover { position: fixed; inset: 0; background: #000; z-index: 100; pointer-events: none; }
 
 /* phone */
 .phone-wrap { display: flex; justify-content: center; }
@@ -210,7 +225,7 @@ body.instant *, body.instant *::before, body.instant *::after { animation: none 
 /* one column: narrow screens and portrait video */
 @media (max-width: 860px), (max-aspect-ratio: 3/4) {
   body { overflow: auto; }
-  .stage { grid-template-columns: 1fr; gap: 18px; }
+  .stage, .stage-viewport, .stage-inner { grid-template-columns: 1fr; gap: 18px; }
   .console { height: auto; min-height: 0; }
   .chapters { grid-template-columns: repeat(3, 1fr); }
   .stats { grid-template-columns: repeat(2, 1fr); }
@@ -248,7 +263,9 @@ body.instant *, body.instant *::before, body.instant *::after { animation: none 
 
   <nav class="chapters" id="chapters" aria-label="Chapters"></nav>
 
-  <section class="stage">
+  <section class="stage" id="stage">
+    <div class="stage-viewport" id="stageViewport">
+    <div class="stage-inner" id="stageInner">
     <div class="phone-wrap">
       <div class="phone" aria-label="Customer's phone">
         <div class="screen" id="screen">
@@ -289,8 +306,13 @@ body.instant *, body.instant *::before, body.instant *::after { animation: none 
       <div class="feed-title">Live feed</div>
       <div class="feed" id="feed"></div>
     </aside>
+    </div>
+    <div class="fx-layer" id="fxLayer" aria-hidden="true"></div>
+    </div>
+    <div class="subs" id="subs" aria-live="polite"><span id="subsText"></span></div>
   </section>
 </div>
+<div id="recordCover" hidden></div>
 
 <div class="overlay" id="intro">
   <div class="big"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M15 41c5-11 15-15 24-12-3-7-1-13 7-15-1 6 1 9 4 12-1 11-10 19-23 19-5 0-9-1-12-4z" fill="#fff"/><path d="M46 15l5-1-3 3z" fill="#E3A21A"/></svg>Hamsa</div>
@@ -311,17 +333,29 @@ body.instant *, body.instant *::before, body.instant *::after { animation: none 
     msgs: $("msgs"), input: $("input"), sendBtn: $("sendBtn"), camera: $("camera"), viewfinder: $("viewfinder"),
     openSlot: $("openSlot"), camHint: $("camHint"), feed: $("feed"), stats: $("stats"), capTitle: $("capTitle"),
     capText: $("capText"), chapters: $("chapters"), intro: $("intro"), outro: $("outro"), pauseBtn: $("pauseBtn"),
+    stage: $("stage"), stageInner: $("stageInner"), fxLayer: $("fxLayer"), subs: $("subs"), subsText: $("subsText"),
+    recordCover: $("recordCover"),
   };
+  const params = new URLSearchParams(location.search);
+  const RECORD = params.get("record") === "1";
+  const SHOW_SUBS = params.get("subs") !== "0";
+  if (params.get("layout") === "vertical") document.body.classList.add("layout-vertical");
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const narration = window.HAMSA_NARRATION || [];
+  const OUTRO_HOLD_MS = 4000;
 
   // ---------- clock + tweens (advance only while playing) ----------
   let clock = 0;          // ms of played time since the current run started
   let instant = false;    // replaying earlier scenes during a jump: no animation
   let tweens = [];
   function tween(dur, fn) {
-    if (instant || dur <= 0) { fn(1); return; }
-    tweens.push({ t0: clock, dur, fn });
+    if (instant || dur <= 0) { fn(1); return null; }
+    const tw = { t0: clock, dur, fn };
+    tweens.push(tw);
     fn(0);
+    return tw;
   }
+  const cancelTween = (tw) => { if (tw) tweens = tweens.filter((t) => t !== tw); };
   function runTweens() {
     tweens = tweens.filter((tw) => {
       const p = Math.min(1, (clock - tw.t0) / tw.dur);
@@ -364,13 +398,19 @@ body.instant *, body.instant *::before, body.instant *::after { animation: none 
     // keep the end of long text visible, like a real input
     els.input.scrollLeft = els.input.scrollWidth;
   }
+  let typeTarget = "", typeTween = null;
   function type(text, dur = text.length * 45) {
     const chars = Array.from(text);
-    tween(dur, (p) => renderInput(chars.slice(0, Math.round(p * chars.length)).join(""), true));
+    typeTarget = text;
+    const pace = scenes[cur]?.pace || 1;
+    typeTween = tween(dur * pace, (p) => renderInput(chars.slice(0, Math.round(p * chars.length)).join(""), true));
   }
   function send() {
-    const text = inputText;
+    const text = typeTarget || inputText;
+    cancelTween(typeTween);
+    typeTarget = ""; typeTween = null;
     if (!text) return;
+    tapAt(els.sendBtn);
     els.sendBtn.classList.add("press");
     tween(160, (p) => { if (p >= 1) els.sendBtn.classList.remove("press"); });
     renderInput("", false);
@@ -410,6 +450,81 @@ body.instant *, body.instant *::before, body.instant *::after { animation: none 
     el.classList.add("tapping");
     tween(600, (p) => { if (p >= 1) el.classList.remove("tapping"); });
   }
+  function bodyZoom() { const z = getComputedStyle(document.body).zoom; return z && z !== "normal" ? parseFloat(z) : 1; }
+  function tapAt(el) {
+    if (!el) return;
+    if (instant || reducedMotion) { tap(el); return; }
+    const layer = els.fxLayer;
+    const sr = els.stage.getBoundingClientRect();
+    const z = bodyZoom();
+    const r = el.getBoundingClientRect();
+    const cx = (r.left + r.width / 2 - sr.left) / z;
+    const cy = (r.top + r.height / 2 - sr.top) / z;
+    const dot = h(`<div class="tap-dot"></div>`);
+    dot.style.left = `${cx}px`; dot.style.top = `${cy}px`;
+    layer.appendChild(dot);
+    const rip = h(`<div class="tap-rip"></div>`);
+    rip.style.left = `${cx}px`; rip.style.top = `${cy}px`;
+    layer.appendChild(rip);
+    tween(450, (p) => {
+      const s = 1 + p * 3.2;
+      rip.style.transform = `translate(-50%, -50%) scale(${s})`;
+      rip.style.opacity = String(1 - p);
+      if (p >= 1) { dot.remove(); rip.remove(); }
+    });
+    tap(el);
+  }
+  let cam = { x: 0, y: 0, scale: 1 };
+  function clampCamera() {
+    const vp = $("stageViewport");
+    const z = bodyZoom();
+    const vw = vp.clientWidth / z, vh = vp.clientHeight / z;
+    const inner = els.stageInner;
+    const iw = inner.offsetWidth, ih = inner.offsetHeight;
+    const margin = 16;
+    const w = iw * cam.scale, h = ih * cam.scale;
+    const minX = Math.min(margin, vw - w - margin);
+    const minY = Math.min(margin, vh - h - margin);
+    cam.x = Math.max(minX, Math.min(margin, cam.x));
+    cam.y = Math.max(minY, Math.min(margin, cam.y));
+  }
+  function applyCamera() {
+    clampCamera();
+    els.stageInner.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.scale})`;
+    window.HAMSA_CAM_SCALE = cam.scale;
+  }
+  function camera(target, scale, ms = 700) {
+    if (instant || reducedMotion || !target) return;
+    const vp = $("stageViewport");
+    const z = bodyZoom();
+    const vw = vp.clientWidth / z, vh = vp.clientHeight / z;
+    const innerR = els.stageInner.getBoundingClientRect();
+    const tr = target.getBoundingClientRect();
+    const tx = (tr.left + tr.width / 2 - innerR.left) / z;
+    const ty = (tr.top + tr.height / 2 - innerR.top) / z;
+    const tw = tr.width / z, th = tr.height / z;
+    const margin = 16;
+    const fit = Math.min(vw / (tw + margin * 2), vh / (th + margin * 2), scale);
+    const from = { ...cam };
+    const toScale = fit;
+    const toX = vw / 2 - tx * toScale;
+    const toY = vh / 2 - ty * toScale;
+    tween(ms, (p) => {
+      const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+      cam.scale = from.scale + (toScale - from.scale) * e;
+      cam.x = from.x + (toX - from.x) * e;
+      cam.y = from.y + (toY - from.y) * e;
+      applyCamera();
+    });
+  }
+  function cameraReset() { cam = { x: 0, y: 0, scale: 1 }; window.HAMSA_CAM_SCALE = 1; applyCamera(); }
+  function setSubs(i) {
+    if (!SHOW_SUBS || !narration[i]) { els.subs.classList.remove("on"); els.subsText.textContent = ""; return; }
+    els.subsText.textContent = narration[i];
+    els.subs.classList.remove("on");
+    void els.subs.offsetWidth;
+    if (!instant) els.subs.classList.add("on");
+  }
   function clearChat() { typing(false); els.msgs.innerHTML = ""; renderInput("", false); }
 
   // ---------- static art ----------
@@ -444,7 +559,7 @@ body.instant *, body.instant *::before, body.instant *::after { animation: none 
       steps: [
         [700, () => els.viewfinder.classList.add("found")],
         [1300, () => { els.camHint.textContent = "QR code found"; els.openSlot.replaceWith(h(`<button class="open-pill" id="openPill" type="button">Open hamsa.in/lakshmisweets</button>`)); }],
-        [2300, () => tap($("openPill"))],
+        [2300, () => tapAt($("qr") || $("openPill"))],
         [2700, () => els.camera.classList.add("gone")],
         [3300, () => typing(true)],
         [4200, () => msg("ai", "Vanakkam! I'm the Lakshmi Sweets assistant. Ask prices, place an order or book a pickup.")],
@@ -469,7 +584,7 @@ body.instant *, body.instant *::before, body.instant *::after { animation: none 
         [1700, () => send()],
         [2000, () => typing(true)],
         [3100, () => msg("ai", "Done! Order <b>#1042</b> is confirmed.", { extra: `<div class="summary"><div><span>Mysore Pak × 1 kg</span><b>₹680</b></div><div><span>Pickup</span><span>Today, 6:00 PM</span></div></div><button class="upi-btn" id="upiBtn" type="button">Pay ₹680 with UPI</button>` })],
-        [4700, () => tap($("upiBtn"))],
+        [4700, () => { camera(document.querySelector(".phone"), 1.35, 700); tapAt($("upiBtn")); }],
         [5300, () => { const b = $("upiBtn"); b.classList.add("paid"); b.textContent = "✓ Paid ₹680 via UPI"; }],
         [5600, () => { feed(`<div class="card-head"><div class="av">#</div><b>New order #1042</b><span class="when">Priya · pickup 6 PM</span></div><div class="trans">Mysore Pak, 1 kg</div><div class="tags"><span class="tag g">Paid ₹680 by UPI</span><span class="tag">₹0 fees</span></div>`, "order"); setStat("sales", 680); addStat("cost", 0.02); }],
       ],
@@ -486,7 +601,7 @@ body.instant *, body.instant *::before, body.instant *::after { animation: none 
           const is = el.querySelectorAll(".wave i");
           tween(1500, (p) => is.forEach((b, i) => b.classList.toggle("on", i < p * is.length)));
         }],
-        [2300, () => $("voiceMsg").appendChild(h(`<div class="transcript"><em>Transcript</em>कल सुबह दो डिब्बे काजू कतली भेज दोगे?</div>`))],
+        [2300, () => { camera(document.querySelector(".phone"), 1.35, 700); $("voiceMsg").appendChild(h(`<div class="transcript"><em>Transcript</em>कल सुबह दो डिब्बे काजू कतली भेज दोगे?</div>`)); }],
         [3100, () => note("Hindi voice note understood", "teal")],
         [3500, () => { typing(true); feed(`<div class="card-head"><div class="av">R</div><b>Rohit, Delhi</b><span class="when">voice note · 0:06</span></div><div class="orig">“कल सुबह दो डिब्बे काजू कतली भेज दोगे?”</div><div class="trans"><span>English</span>Can you send two boxes of Kaju Katli tomorrow morning?</div><div class="tags"><span class="tag">Wants delivery</span><span class="tag t">Hindi voice note</span></div>`); setStat("chats", 2); }],
         [5200, () => { msg("ai", "जी हाँ! काजू कतली के 2 डिब्बे (500 ग्राम), कुल ₹900। कल सुबह 10 बजे डिलीवरी कर दें?"); setStat("ai", 2); addStat("cost", 0.04); }],
@@ -502,10 +617,11 @@ body.instant *, body.instant *::before, body.instant *::after { animation: none 
         [3000, () => note("Customer upset: owner notified", "red")],
         [3300, () => {
           typing(true);
+          camera(document.querySelector(".console"), 1.25, 700);
           feed(`${priyaHead()}<div style="margin-top:-4px"><b style="color:var(--sindoor);font-size:15px">Priya needs you</b></div><div class="trans"><span class="k-lbl">English</span>Yesterday's order came late. Very disappointed.</div><div class="trans"><span class="k-lbl">AI summary</span>Order #1042 was picked up 40 minutes late. Loyal customer, 6 orders this year.</div><div class="suggest"><p>“So sorry, Priya! Your next order has 10% off, on us.”</p><button class="send-reply" id="sendReply" type="button">Send reply</button></div>`, "alert");
         }],
         [4500, () => msg("ai", "Sorry Priya. I'm bringing Lakshmi into this chat right now.")],
-        [6500, () => tap($("sendReply"))],
+        [6500, () => tapAt($("sendReply"))],
         [7000, () => { const b = $("sendReply"); b.classList.add("sent"); b.textContent = "✓ Sent in Tanglish"; }],
         [7500, () => msg("owner", "Romba sorry Priya! Unga next order-ku 10% off, namma side irundhu 🙏", { label: "Lakshmi (owner), auto-translated" })],
         [9000, () => type("Thank you! See you next week 🙂", 1300)],
@@ -516,7 +632,7 @@ body.instant *, body.instant *::before, body.instant *::after { animation: none 
       chapter: 6, label: "Your day", title: "Your whole day, at a glance.", duration: 7200,
       text: "Every chat, order and rupee in one place, and what to teach the AI next.",
       steps: [
-        [200, () => { els.stats.classList.add("glow"); setStat("chats", 64, 2200); setStat("ai", 52, 2200); setStat("sales", 18400, 2200); setStat("cost", 2.6, 2200); }],
+        [200, () => { camera(document.querySelector(".console"), 1.25, 700); els.stats.classList.add("glow"); setStat("chats", 64, 2200); setStat("ai", 52, 2200); setStat("sales", 18400, 2200); setStat("cost", 2.6, 2200); }],
         [2700, () => feed(`<div class="card-head"><div class="av">☀</div><b>Today at Lakshmi Sweets</b><span class="when">9 PM summary</span></div><div class="trans"><b>23 orders.</b> Best seller: Mysore Pak. 52 of 64 chats answered by AI.</div><div class="tags"><span class="tag g">₹18,400 sales</span><span class="tag">₹2.60 AI cost</span></div><div id="todo" style="min-height:0"></div>`, "day")],
         [4100, () => $("todo").appendChild(h(`<div class="trans reveal"><span class="k-lbl" style="color:#8A5B00">To teach</span>3 questions the AI couldn't answer, like “Do you make sugar-free sweets?” Add the answers once and it will know next time.</div>`))],
       ],
@@ -526,10 +642,32 @@ body.instant *, body.instant *::before, body.instant *::after { animation: none 
       steps: [[0, () => els.outro.classList.remove("hidden")]],
     },
   ];
-  const TOTAL = scenes.reduce((s, sc) => s + sc.duration, 0);
+  const CUTS = {
+    short: { scenes: [0, 2, 3, 5, 7], setup: { 0: [1] }, fixed: { 0: 2000 }, pad: 150, narrate: new Set([2, 3, 5, 7]) },
+  };
+  const cut = CUTS[params.get("cut")] || null;
+  const timings = window.HAMSA_TIMINGS || {};
+  const narrationMs = (i) => Number(timings[i] ?? timings[String(i)]) || 0;
+  const baseDur = scenes.map((s) => s.duration);
+  scenes.forEach((sc, i) => {
+    const base = baseDur[i], n = narrationMs(i);
+    let final = Math.max(base, n ? n + 800 : 0);
+    if (cut?.fixed[i] != null) final = cut.fixed[i];
+    else if (cut && n && (!cut.narrate || cut.narrate.has(i))) final = n + cut.pad;
+    sc.pace = final / base;
+    sc.duration = Math.round(final);
+    sc.steps = sc.steps.map(([t, fn]) => [Math.round(t * sc.pace), fn]);
+  });
+  const order = cut ? cut.scenes : scenes.map((_, i) => i);
+  const TOTAL = order.reduce((s, i) => s + scenes[i].duration, 0);
+  let acc = 0;
+  const schedule = order.map((i) => { const e = { scene: i, start: acc, duration: scenes[i].duration }; acc += e.duration; return e; });
+  window.HAMSA_SCHEDULE = schedule;
+  const sceneAfter = (i) => { const p = order.indexOf(i); return p < 0 || p >= order.length - 1 ? null : order[p + 1]; };
+  const isLastInOrder = (i) => order[order.length - 1] === i;
 
   // ---------- chapters ----------
-  const chapterBtns = scenes.filter((s) => s.chapter >= 1 && s.chapter <= 6).map((s) => {
+  const chapterBtns = scenes.filter((s, i) => s.chapter >= 1 && s.chapter <= 6 && order.includes(i)).map((s) => {
     const b = h(`<button class="chapter" type="button"><span class="num">${s.chapter}</span><span class="lbl">${s.label}</span><span class="fill"></span></button>`);
     b.addEventListener("click", () => jump(scenes.indexOf(s)));
     els.chapters.appendChild(b);
@@ -558,6 +696,9 @@ body.instant *, body.instant *::before, body.instant *::after { animation: none 
   function resetDom() {
     tweens = [];
     typingEl = null;
+    typeTarget = ""; typeTween = null;
+    els.fxLayer.innerHTML = "";
+    cameraReset();
     els.msgs.innerHTML = "";
     renderInput("", false);
     els.camera.classList.remove("gone");
@@ -571,27 +712,56 @@ body.instant *, body.instant *::before, body.instant *::after { animation: none 
     for (const k of Object.keys(statVal)) { statVal[k] = 0; els.stats.querySelector(`[data-k="${k}"] .v`).textContent = fmt[k](0); }
     els.intro.classList.add("hidden");
     els.outro.classList.add("hidden");
+    els.subs.classList.remove("on");
   }
-  function enterScene(i) {
+  function runSetupScenes() {
+    if (!cut?.setup) return;
+    document.body.classList.add("instant");
+    instant = true;
+    for (const [afterScene, ids] of Object.entries(cut.setup)) {
+      if (Number(afterScene) !== 0) continue;
+      for (const sid of ids) {
+        enterScene(Number(sid), true);
+        sceneT = scenes[sid].duration;
+        runDueSteps();
+      }
+    }
+    instant = false;
+    document.body.classList.remove("instant");
+  }
+  function enterScene(i, skipSubs = false) {
     cur = i; sceneT = 0; stepIdx = 0;
+    cameraReset();
     setCaption(scenes[i]);
+    if (!skipSubs) setSubs(i);
+    if (RECORD) console.log(JSON.stringify({ type: "scene", scene: i, clock }));
   }
   function runDueSteps() {
     const sc = scenes[cur];
     while (stepIdx < sc.steps.length && sc.steps[stepIdx][0] <= sceneT) sc.steps[stepIdx++][1]();
   }
+  function replayBefore(target) {
+    const pos = order.indexOf(target);
+    if (pos <= 0) return;
+    for (let p = 0; p < pos; p++) {
+      enterScene(order[p], true);
+      sceneT = scenes[order[p]].duration;
+      runDueSteps();
+    }
+  }
   function jump(i) {
     document.body.classList.add("instant");
     instant = true;
     resetDom();
-    for (let k = 0; k < i; k++) { enterScene(k); sceneT = scenes[k].duration; runDueSteps(); }
+    runSetupScenes();
+    replayBefore(i);
     flushTweens();
-    // Elements rebuilt by the replay must not play their entrance animation again.
     document.querySelectorAll("#msgs > *, #feed > *, #feed .reveal, .transcript, .open-pill").forEach((el) => el.classList.add("noanim"));
     instant = false;
     void document.body.offsetWidth;
     document.body.classList.remove("instant");
     clock = 0; finished = false;
+    if (RECORD && els.recordCover) { els.recordCover.hidden = false; requestAnimationFrame(() => { els.recordCover.hidden = true; }); }
     enterScene(i);
     runDueSteps();
     renderChapters();
@@ -604,9 +774,11 @@ body.instant *, body.instant *::before, body.instant *::after { animation: none 
       sceneT += dt;
       runDueSteps();
       while (sceneT >= scenes[cur].duration) {
-        if (cur === scenes.length - 1) { finished = true; pause(); break; }
+        els.subs.classList.remove("on");
+        if (isLastInOrder(cur)) { finished = true; pause(); break; }
         const over = sceneT - scenes[cur].duration;
-        enterScene(cur + 1);
+        const next = sceneAfter(cur);
+        enterScene(next);
         sceneT = over;
         runDueSteps();
       }
@@ -617,7 +789,7 @@ body.instant *, body.instant *::before, body.instant *::after { animation: none 
     requestAnimationFrame(tick);
   }
   function play() {
-    if (finished) return jump(0);
+    if (finished) return jump(order[0]);
     playing = true;
     document.body.classList.remove("paused");
     els.pauseBtn.textContent = "Pause";
@@ -629,27 +801,31 @@ body.instant *, body.instant *::before, body.instant *::after { animation: none 
   }
 
   els.pauseBtn.addEventListener("click", () => (playing ? pause() : play()));
-  $("restartBtn").addEventListener("click", () => jump(0));
-  $("againBtn").addEventListener("click", () => jump(0));
+  $("restartBtn").addEventListener("click", () => jump(order[0]));
+  $("againBtn").addEventListener("click", () => jump(order[0]));
   document.addEventListener("keydown", (e) => { if (e.code === "Space") { e.preventDefault(); playing ? pause() : play(); } });
 
   drawQr();
   window.hamsaDemo = {
-    totalMs: TOTAL, play, pause, restart: () => jump(0), jump,
+    get totalMs() { return TOTAL + OUTRO_HOLD_MS; },
+    demoMs: TOTAL,
+    outroHoldMs: OUTRO_HOLD_MS,
+    schedule,
+    play, pause, restart: () => jump(order[0]), jump,
     chapterIndex: (n) => scenes.findIndex((s) => s.chapter === n),
     state: () => ({ scene: cur, sceneT, clock, playing, finished }),
   };
   requestAnimationFrame(tick);
-  const autoplay = new URLSearchParams(location.search).get("autoplay") !== "0";
+  const autoplay = params.get("autoplay") !== "0";
   resetDom();
-  enterScene(0);
+  enterScene(order[0]);
   renderChapters();
   // Script fonts are only fetched when used; load them up front so Tamil/Hindi never flash in a fallback face.
   const fontsReady = Promise.all([
     ['700 16px "Bricolage Grotesque"', "Hamsa"], ['16px "Noto Sans"', "Aa"], ['16px "Noto Sans Tamil"', "தமிழ்"],
     ['16px "Noto Sans Devanagari"', "हिन्दी"], ['16px "Noto Color Emoji"', "🙏🙂"],
   ].map(([f, t]) => document.fonts.load(f, t).catch(() => null))).then(() => document.fonts.ready).then(() => { window.hamsaFontsReady = true; });
-  if (autoplay) fontsReady.then(() => jump(0));
+  if (autoplay) fontsReady.then(() => jump(order[0]));
   else { runDueSteps(); pause(); }
 })();
 </script>

@@ -8,3 +8,5 @@ node_modules/
 dist/
 .pytest_cache/
 *.tsbuildinfo
+demo/_audio/
+demo/_video/
