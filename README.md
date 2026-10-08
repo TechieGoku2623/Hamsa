@@ -4,6 +4,12 @@ An Indian messaging app in the WhatsApp mould. Personal and group chats are end-
 everyone. Businesses live inside the same app, where an Indic AI agent takes orders in the customer's language and
 collects payment by UPI. Businesses pay on plans from ₹99/month.
 
+<p align="center">
+  <img src="demo/hamsa-demo.gif" alt="Hamsa walkthrough" width="880"/>
+</p>
+
+[Play the video](demo/hamsa-demo.mp4).
+
 ## What works today
 
 * **Messenger**: phone-number sign-up (OTP), 1:1 and group chats, end-to-end encrypted in the browser
